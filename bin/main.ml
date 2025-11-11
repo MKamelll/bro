@@ -5,10 +5,9 @@ type tokentype =
   | RightBrace
   | LeftBracket
   | RightBracket
-  (* | String of string
+  | String of string
   | Int of int
   | Float of float
-  *)
   | Let
   | Const
   | Type
@@ -41,7 +40,7 @@ type tokentype =
   | Eof
 [@@deriving show]
 
-type lexemetype = String of string (*| Int of int | Float of float *)
+type lexemetype = String of string | Int of int | Float of float
 [@@deriving show]
 
 type token = { kind : tokentype; lexeme : lexemetype } [@@deriving show]
@@ -66,7 +65,7 @@ let get_tokens l = l.tokens |> List.rev
 let create_identifier l =
   let rec aux l chars =
     if is_at_end l || not (Char.Ascii.is_alphanum (curr l)) then
-      let identifier = chars |> List.to_seq |> String.of_seq
+      let identifier = chars |> List.rev |> List.to_seq |> String.of_seq
       in
       match identifier with
       | "let" -> l |> add_token Let (String identifier)
@@ -80,10 +79,42 @@ let create_identifier l =
       | "type" -> l |> add_token Type (String identifier)
       | _ -> l |> add_token Identifier (String identifier)
     else
-      let l = l |> advance in
-      aux l (curr l :: chars)
+      aux (l |> advance) ((curr l) :: chars)
   in
   aux l []
+
+let create_string l =
+  let rec aux l chars =
+    if is_at_end l || curr l == '"' then
+      let str = chars |> List.rev |> List.to_seq |> String.of_seq
+      in
+      l |> advance |> add_token (String str) (String str)
+    else
+      aux (l |> advance) ((curr l) :: chars)
+  in
+  aux (l |> advance) []
+
+let create_number l =
+  let rec aux l is_float chars =
+    if not (is_at_end l) && curr l == '.'
+    then
+      aux (l |> advance) true ('.' :: chars)
+    else
+    if is_at_end l || not (l |> curr |> Char.Ascii.is_digit)
+    then
+      if is_float
+      then
+        let number = chars |> List.rev |> List.to_seq |> String.of_seq |> float_of_string
+        in
+        l |> add_token (Float number) (Float number)
+      else
+        let number = chars |> List.rev |> List.to_seq |> String.of_seq |> int_of_string
+        in
+        l |> add_token (Int number) (Int number)
+    else
+      aux (l |> advance) is_float ((curr l) :: chars)
+  in
+  aux l false []
 
 let rec tokenize l =
   if is_at_end l then l |> add_token Eof (String "Eof")
@@ -138,8 +169,10 @@ let rec tokenize l =
     | ':' -> l |> add_token Colon (String ":") |> advance |> tokenize
     | ';' -> l |> add_token SemiColon (String ";") |> advance |> tokenize
     | char when Char.Ascii.is_letter char -> l |> create_identifier |> tokenize
+    | char when Char.Ascii.is_digit char -> l |> create_number |> tokenize
+    | '"' -> l |> create_string |> tokenize
     | _ -> l |> add_token Unknown (String (String.make 1 (curr l))) |> advance |> tokenize
 
-let src = "( ) [ ] / * = + -"
+let src = "( ) [ ] / * = + - \"fuck off\" function let const return 14234 12.45"
 let tokens = create_lexer src |> tokenize |> get_tokens
 let () = List.iter (fun x -> show_token x |> print_endline) tokens
