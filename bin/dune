@@ -2,4 +2,5 @@
  (public_name bro)
  (preprocess (pps ppx_deriving.show))
  (libraries bro)
- (name main))
+ (name main)
+ (modules main lexer))
