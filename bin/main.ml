@@ -7,6 +7,7 @@ type expression =
   | Identifier of string
   | Let of expression * expression
   | Const of expression * expression
+  | Block of expression list
   | Binary of expression * string * expression
 [@@deriving show]
 
@@ -65,6 +66,7 @@ let rec parse_primary p =
   | {kind = Identifier; lexeme = String s} -> (Identifier s, advance p)
   | {kind = Let; _} -> parse_let_expr p
   | {kind = Const; _} -> parse_const_expr p
+  | {kind = LeftBracket; _} -> parse_block_expr p
   | _ -> failwith "not supported"
 
 and expect_semicolon p =
@@ -101,6 +103,21 @@ and parse_const_expr p =
     (Const (Identifier s, rhs), p)
   | _ -> failwith ("Expected an identifier instead got '" ^ curr_token_lexeme p ^ "'")
 
+and parse_block_expr p =
+  let p = p |> advance
+  in
+  let rec aux exprs p =
+    if is_at_end p then (Block (List.rev exprs), p)
+    else
+      match curr_token p with
+      | {kind = RightBracket; _} -> (Block (List.rev exprs), advance p)
+      | _ ->
+        let (expr, p) = parse_expr 0 p
+        in
+        aux (expr :: exprs) p
+  in
+  aux [] p
+
 and parse_expr min_prec p =
   let (lhs, p) = parse_primary p
   in
@@ -136,7 +153,7 @@ let rec parse p =
 
 let get_parsed p = List.rev p.parsed_trees
 
-let src = "let x = 3 * 5 + 6 ^ 12 * 5 - 2; const s = 15;"
+let src = "{ let x = 3 * 5 + 6 ^ 12 * 5 - 2; const s = 15; }"
 let lexer = create_lexer src
 let () = create_parser lexer
   |> parse
