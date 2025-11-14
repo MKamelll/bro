@@ -5,6 +5,8 @@ type expression =
   | String of string
   | Float of float
   | Identifier of string
+  | Let of expression * expression
+  | Const of expression * expression
   | Binary of expression * string * expression
 [@@deriving show]
 
@@ -17,6 +19,7 @@ type operator = { lexeme : string; assoc : associativity; prec : int }
 [@@deriving show]
 
 let curr_token p = List.nth p.lexer.tokens p.index
+let curr_token_lexeme p = show_lexemetype ((curr_token p).lexeme)
 
 let create_parser l =
   let lexer = l |> tokenize |> get_tokens in
@@ -54,16 +57,51 @@ let curr_operator_info p =
   | _ -> None
 
 
-let parse_primary p =
+let rec parse_primary p =
   match curr_token p with
   | {kind = Int i; _} -> (Int i, advance p)
   | {kind = Float f; _} -> (Float f, advance p)
   | {kind = String s; _} -> (String s, advance p)
   | {kind = Identifier; lexeme = String s} -> (Identifier s, advance p)
+  | {kind = Let; _} -> parse_let_expr p
+  | {kind = Const; _} -> parse_const_expr p
   | _ -> failwith "not supported"
 
+and expect_semicolon p =
+  match curr_token p with
+  | {kind = SemiColon; _} -> p |> advance
+  | _ -> failwith "Expected a semicolon"
 
-let rec parse_expr min_prec p =
+and parse_let_expr p =
+  let p = p |> advance
+  in
+  match curr_token p with
+  | {kind = Identifier; lexeme = String s} ->
+    let p = p |> advance |> advance
+    in
+    (* show_token (curr_token p) |> print_endline; *)
+    let (rhs, p) = parse_expr 0 p
+    in
+    let p = expect_semicolon p
+    in
+    (Let (Identifier s, rhs), p)
+  | _ -> failwith ("Expected an identifier instead got '" ^ curr_token_lexeme p  ^ "'")
+
+and parse_const_expr p =
+  let p = p |> advance
+  in
+  match curr_token p with
+  | {kind = Identifier; lexeme = String s} ->
+    let p = p |> advance |> advance
+    in
+    let (rhs, p) = parse_expr 0 p
+    in
+    let p = expect_semicolon p
+    in
+    (Const (Identifier s, rhs), p)
+  | _ -> failwith ("Expected an identifier instead got '" ^ curr_token_lexeme p ^ "'")
+
+and parse_expr min_prec p =
   let (lhs, p) = parse_primary p
   in
   let rec aux lhs p =
@@ -98,7 +136,7 @@ let rec parse p =
 
 let get_parsed p = List.rev p.parsed_trees
 
-let src = "3 * 5 + 6 ^ 12 * 5 - 2"
+let src = "let x = 3 * 5 + 6 ^ 12 * 5 - 2; const s = 15;"
 let lexer = create_lexer src
 let () = create_parser lexer
   |> parse
