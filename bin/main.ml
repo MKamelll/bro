@@ -8,7 +8,7 @@ type expression =
   | Let of expression * expression
   | Const of expression * expression
   | Block of expression list
-  | Function of expression * expression list
+  | Function of expression * expression list * expression list
   | Binary of expression * string * expression
 [@@deriving show]
 
@@ -131,13 +131,30 @@ and parse_function_expr p =
   | {kind = Identifier; lexeme = String s} ->
     let p = p |> advance
     in
+    let p = p |> advance
+    in
+    let rec aux params p =
+      if is_at_end p then (params, p) else
+        match curr_token p with
+        | {kind = Identifier; lexeme = String s} ->
+          let params =  (Identifier s) :: params
+          in
+          aux params (advance p)
+        | {kind = Comma; lexeme = _} ->
+          aux params (advance p)
+        | {kind = RightParen; lexeme = _} ->
+          (params, advance p)
+        | _ -> failwith ("Expected an identifier instead got '" ^ curr_token_lexeme p ^ "'")
+    in
+    let (params, p) = aux [] p
+    in
     let (block, p) = parse_block_expr p
     in
     let list = match block with
     | Block list -> list
     | _ -> []
     in
-    (Function (Identifier s, list), p)
+    (Function (Identifier s, params, list), p)
   | _ -> failwith ("Expected an identifier instead got '" ^ curr_token_lexeme p ^ "'")
 
 and parse_expr min_prec p =
@@ -175,7 +192,7 @@ let rec parse p =
 
 let get_parsed p = List.rev p.parsed_trees
 
-let src = "function add { let x = 3 * 5 + 6 ^ 12 * 5 - 2; const s = 15; }"
+let src = "function add(x, y, z) { let x = 3 * 5 + 6 ^ 12 * 5 - 2; const s = 15; }"
 let lexer = create_lexer src
 let () = create_parser lexer
   |> parse

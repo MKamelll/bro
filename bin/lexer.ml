@@ -32,6 +32,7 @@ type tokentype =
   | LessThan
   | GreaterThanEqual
   | LessThanEqual
+  | Comma
   | And
   | Or
   | Return
@@ -168,6 +169,7 @@ let rec tokenize l =
     | ' ' -> l |> advance |> tokenize
     | ':' -> l |> add_token Colon (String ":") |> advance |> tokenize
     | ';' -> l |> add_token SemiColon (String ";") |> advance |> tokenize
+    | ',' -> l |> add_token Comma (String ",") |> advance |> tokenize
     | char when Char.Ascii.is_letter char -> l |> create_identifier |> tokenize
     | char when Char.Ascii.is_digit char -> l |> create_number |> tokenize
     | '"' -> l |> create_string |> tokenize
